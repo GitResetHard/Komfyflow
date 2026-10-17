@@ -1,0 +1,74 @@
+name: komfyflow
+x-app: &app
+  build: .
+  env_file: .env
+  environment:
+    DATABASE_URL: mysql://komfyflow:${MARIADB_PASSWORD:?Set MARIADB_PASSWORD}@database:3306/komfyflow
+    REDIS_URL: redis://redis:6379
+    STORAGE_DIR: /app/storage
+  volumes:
+    - originals:/app/storage
+  restart: unless-stopped
+  depends_on:
+    database:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+services:
+  database:
+    image: mariadb:11.8
+    environment:
+      MARIADB_DATABASE: komfyflow
+      MARIADB_USER: komfyflow
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:?Set MARIADB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Set MARIADB_ROOT_PASSWORD}
+    volumes:
+      - database:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+  redis:
+    image: redis:8.0-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  migrate:
+    <<: *app
+    command: ["npx", "prisma", "migrate", "deploy"]
+    restart: "no"
+  web:
+    <<: *app
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+  worker:
+    <<: *app
+    command: ["npm", "run", "worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+volumes:
+  database:
+  redis:
+  originals:

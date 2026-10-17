@@ -1,0 +1,73 @@
+{
+  "name": "komfyflow",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "node viewer/build.mjs && prisma generate && next build --webpack && node scripts/prepare-standalone.mjs",
+    "start": "node --env-file-if-exists=.env scripts/start.mjs",
+    "worker": "node --env-file-if-exists=.env --import tsx src/worker/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "node --env-file-if-exists=.env --import tsx prisma/seed.ts",
+    "viewer:build": "node viewer/build.mjs",
+    "check-env": "node scripts/check-env.mjs",
+    "test:viewer": "node --test viewer/*.test.mjs",
+    "test:api": "node --import tsx tests/integration/api-smoke.ts",
+    "test:redis": "node --import tsx tests/integration/security-redis.ts",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"prisma/**/*.ts\" \"tests/**/*.{ts,tsx}\" \"scripts/*.mjs\" \"*.json\" \"*.ts\" \"*.js\" \"docs/*.md\" README.md",
+    "check": "npm run db:generate && npm run typecheck && npm test && npm run test:viewer && npm run build",
+    "test:runtime": "node tests/integration/runtime-assets.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.900.0",
+    "@prisma/adapter-mariadb": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "@radix-ui/react-slot": "^1.2.3",
+    "bullmq": "^5.61.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "dotenv": "^18.0.8",
+    "ioredis": "^5.8.0",
+    "lucide-react": "^1.59.0",
+    "next": "^16.4.2",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sharp": "^0.35.5",
+    "tailwind-merge": "^3.3.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.1.3",
+    "postcss": "^8.5.23",
+    "prettier": "^3.9.10",
+    "prisma": "^7.10.1",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.5"
+  },
+  "overrides": {
+    "postcss": "^8.5.23",
+    "deepmerge-ts": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "workspaces": [
+    "viewer"
+  ]
+}

@@ -1,0 +1,193 @@
+name: Platform acceptance
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: acceptance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  platform:
+    name: Build, security, API, and real-browser acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      mariadb:
+        image: mariadb:11.8
+        env:
+          MARIADB_DATABASE: komfyflow_ci
+          MARIADB_USER: komfyflow_ci
+          MARIADB_PASSWORD: ci-disposable-database-password
+          MARIADB_ROOT_PASSWORD: ci-disposable-root-password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+      redis:
+        image: redis:8.0-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    # Synthetic credentials for isolated, ephemeral CI services only. No repository
+    # secrets, production accounts, B2 objects, or external mail service are used.
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      APP_URL: http://localhost:3000
+      TEST_BASE_URL: http://localhost:3000
+      DATABASE_URL: mysql://komfyflow_ci:ci-disposable-database-password@127.0.0.1:3306/komfyflow_ci
+      REDIS_URL: redis://127.0.0.1:6379
+      SESSION_SECRET: ci-only-disposable-session-signing-key-at-least-64-characters-long
+      STORAGE_DRIVER: local
+      STORAGE_DIR: ${{ github.workspace }}/.data/ci-storage
+      ALLOW_LOCAL_STORAGE: "true"
+      REQUIRE_VERIFIED_UPLOADS: "true"
+      TRUST_PROXY: "false"
+      MAIL_WEBHOOK_URL: http://127.0.0.1:3101/mail
+      MAIL_WEBHOOK_TOKEN: ci-only-disposable-mail-secret
+      TEST_MAIL_PORT: "3101"
+      BIND_HOST: "0.0.0.0"
+      PORT: "3000"
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install the locked dependency tree
+        run: npm ci
+      - name: Install Chromium and official Linux browser dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Validate, test, and build production assets
+        run: |
+          npm run viewer:build
+          npm run check
+      - name: Apply committed database migrations and seed samples
+        run: |
+          mkdir -p "$STORAGE_DIR" .data/ci-logs
+          npx prisma migrate deploy
+          npm run db:seed
+      - name: Start production application and analysis worker
+        run: |
+          NODE_ENV=production nohup npm run worker > .data/ci-logs/worker.log 2>&1 &
+          echo "$!" > .data/ci-logs/worker.pid
+          NODE_ENV=production nohup npm run start > .data/ci-logs/server.log 2>&1 &
+          echo "$!" > .data/ci-logs/server.pid
+          for attempt in $(seq 1 90); do
+            kill -0 "$(cat .data/ci-logs/server.pid)" || { cat .data/ci-logs/server.log; exit 1; }
+            kill -0 "$(cat .data/ci-logs/worker.pid)" || { cat .data/ci-logs/worker.log; exit 1; }
+            if curl --fail --silent "$TEST_BASE_URL/api/health" > .data/ci-logs/health.json; then
+              cat .data/ci-logs/health.json
+              exit 0
+            fi
+            sleep 2
+          done
+          cat .data/ci-logs/server.log .data/ci-logs/worker.log
+          echo "Production server did not become healthy" >&2
+          exit 1
+      - name: Check atomic Redis security and production HTTP assets
+        run: |
+          npm run test:redis
+          npm run test:runtime
+      - name: Exercise real database, queue, storage, auth, and API workflows
+        run: npm run test:api
+      - name: Exercise desktop and mobile UI in real Chromium
+        run: npx playwright test
+      - name: Retain browser report, real screenshots, traces, and runtime logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+            .data/ci-logs/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Stop disposable application processes
+        if: always()
+        run: |
+          for file in .data/ci-logs/server.pid .data/ci-logs/worker.pid; do
+            if test -f "$file"; then kill "$(cat "$file")" 2>/dev/null || true; fi
+          done
+
+  compose:
+    name: Docker Compose deployment smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      TEST_BASE_URL: http://localhost:3000
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Use Node.js 24 for dependency-free runtime checks
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Configure isolated disposable Compose services
+        run: |
+          mkdir -p .data/compose-logs
+          cat > .env <<'ENV'
+          APP_URL=http://localhost:3000
+          MARIADB_PASSWORD=ci-compose-disposable-database-password
+          MARIADB_ROOT_PASSWORD=ci-compose-disposable-root-password
+          SESSION_SECRET=ci-compose-only-disposable-session-signing-key-with-64-characters
+          STORAGE_DRIVER=local
+          STORAGE_DIR=/app/storage
+          ALLOW_LOCAL_STORAGE=true
+          REQUIRE_VERIFIED_UPLOADS=true
+          TRUST_PROXY=false
+          MAIL_WEBHOOK_URL=
+          MAIL_WEBHOOK_TOKEN=
+          NEXT_TELEMETRY_DISABLED=1
+          BIND_HOST=0.0.0.0
+          PORT=3000
+          ENV
+          docker compose version
+          docker compose config --quiet
+      - name: Build the actual deployment images
+        run: docker compose build --pull
+      - name: Start database, Redis, migrations, production web, and worker
+        run: docker compose up --wait --wait-timeout 180 web worker
+      - name: Seed through the non-root production container
+        run: docker compose exec -T web npm run db:seed
+      - name: Verify deployed production pages, styles, CSP, viewer, and health
+        run: node tests/integration/runtime-assets.mjs
+      - name: Capture deployment status and logs, including failures
+        if: always()
+        run: |
+          mkdir -p .data/compose-logs
+          docker compose ps --all > .data/compose-logs/status.txt 2>&1 || true
+          docker compose logs --no-color > .data/compose-logs/containers.log 2>&1 || true
+      - name: Retain Compose deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compose-deployment-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .data/compose-logs/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Destroy disposable containers, volumes, and network
+        if: always()
+        run: |
+          if test -f .env; then
+            docker compose down --volumes --remove-orphans
+          fi

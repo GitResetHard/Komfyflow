@@ -1,0 +1,3 @@
+import {useLinkPresentationStore} from './linkPresentationStore';
+export function getAgreedLinkPresentation(values:any[]){const candidates=values.filter(Boolean);if(!candidates.length)return {};const first=candidates[0];return {hidden:candidates.every(v=>v.hidden===first.hidden)?first.hidden:undefined,label:candidates.every(v=>v.label===first.label)?first.label:undefined};}
+export function transferLinkPresentation(scope:any,from:any,target:any){if(target===undefined)return;const p=typeof from==='number'?useLinkPresentationStore().getPresentation(scope,from):from;if(p)useLinkPresentationStore().patch(scope,target,{hidden:p.hidden,label:p.label});}
