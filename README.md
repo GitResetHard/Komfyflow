@@ -23,6 +23,8 @@ Requires Node.js 24, MariaDB and Redis, or Docker Compose.
 3. For native development, set DATABASE_URL and REDIS_URL to your services, STORAGE_DRIVER=local, and STORAGE_DIR to a writable local path. Run `npm ci`, `npm run db:generate`, `npx prisma migrate deploy`, optionally `npm run db:seed` for six clearly labelled illustrative workflows, then `npm run dev` and `npm run worker` in separate terminals.
 4. Open http://localhost:3000. Register an account. Configure transactional mail before testing verification and recovery delivery. The adapter receives POST JSON `{to, template: "verify" | "reset", link}` with a bearer token. Production should set REQUIRE_VERIFIED_UPLOADS=true.
 
+`npm run dev`, `npm run worker`, and `npm run db:seed` generate Prisma Client before starting, so a missing or outdated generated client is rebuilt automatically. To repair an existing checkout reporting `Cannot find module '.prisma/client/default'`, run `npm run db:generate` and then restart the command. Client generation does not connect to or modify the database.
+
 The local storage setting in `.env.example` is for a private development instance, not a public production configuration. Production requires HTTPS, a private B2 bucket and scoped application key, transactional mail, backups, abuse handling and operational monitoring. Never put B2 secrets into NEXT_PUBLIC variables.
 
 ## Verification
