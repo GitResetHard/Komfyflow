@@ -25,12 +25,12 @@ Implementation and verification are separate. This is not an MVP/deferred-featur
 | Dark/light/selectable accents                | Graphite, warm off-white, copper/violet/teal/blue                                                                    | UI persistence tests; responsive CSS implemented, visual QA blocked                                   |
 | MariaDB/Redis/migrations                     | Prisma schema/migration, queue and shared rate limit                                                                 | Actual MariaDB 11.8 and Redis 8 integration checks                                                    |
 | Private B2 storage                           | S3-compatible adapter, private app-gated object access, immutable writes                                             | Local storage exercised; live B2 credentials absent                                                   |
-| Docker deployment                            | Dockerfile, Compose health/dependency ordering, migration service                                                    | Config reviewed; Docker daemon unavailable in this environment                                        |
+| Docker deployment                            | Dockerfile, Compose health/dependency ordering, migration service                                                    | Actual GitHub Actions image build, Compose startup, seed and runtime HTTP checks passed                                        |
 
 ## Limits that remain explicit
 
 - Current ComfyUI native nodes/canvas are pinned at `a8e134a988495b2e22979458b41f561083cb5d5b`. Original semantic state/layout adapters and original connection-line rendering replace host application dependencies outside the MIT subtree. Extension-dependent rendering is not promised pixel-identical. See `viewer/README.md`.
-- Shell Chromium cannot create its required Unix socket. The supported cloud browser cannot reach the shell task's isolated localhost. No screenshot or browser visual pass is claimed.
+- Local shell Chromium cannot create its required Unix socket. Remote GitHub Actions now runs real Chromium and retains screenshots/traces. First-run browser findings are being corrected; see verification.md for current status.
 - Production B2 bucket/application key, external mail provider, HTTPS domain/proxy and deployment infrastructure are not supplied or provisioned. Local email transport verification is not live-provider verification.
 - Deployment requires backups/restore testing, monitoring, content moderation/abuse operations, and load testing for the intended traffic. The implementation does not execute workflows, load models or install custom nodes.
 - Search uses bounded MariaDB JSON metadata matching. An indexed search service is an operational scaling option, not required for the implemented search behavior.

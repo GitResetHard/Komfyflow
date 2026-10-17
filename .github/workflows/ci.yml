@@ -64,9 +64,9 @@ jobs:
       PORT: "3000"
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
       - name: Use Node.js 24
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: "24"
           cache: npm
@@ -111,7 +111,7 @@ jobs:
         run: npx playwright test
       - name: Retain browser report, real screenshots, traces, and runtime logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: platform-acceptance-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
@@ -137,9 +137,9 @@ jobs:
       TEST_BASE_URL: http://localhost:3000
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
       - name: Use Node.js 24 for dependency-free runtime checks
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: "24"
       - name: Configure isolated disposable Compose services
@@ -179,7 +179,7 @@ jobs:
           docker compose logs --no-color > .data/compose-logs/containers.log 2>&1 || true
       - name: Retain Compose deployment evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: compose-deployment-${{ github.run_id }}-${{ github.run_attempt }}
           path: .data/compose-logs/

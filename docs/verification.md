@@ -24,12 +24,12 @@ Native tests configure actual native graphs/subgraphs and draw the native canvas
 
 ## Browser CI and external gates
 
-GitHub Actions runs the full build/API/security suite and 12 Playwright desktop/mobile journeys, plus an independent actual Docker Compose build/start/seed/HTTP smoke job. Test discovery, configuration parsing and strict TypeScript checking pass locally. Actual browser execution remains pending the first remote CI run; no CI pass is claimed in advance.
+GitHub Actions runs the full build/API/security suite and 12 Playwright desktop/mobile journeys, plus an independent actual Docker Compose build/start/seed/HTTP smoke job. Test discovery, configuration parsing and strict TypeScript checking pass locally. The first remote run completed Docker deployment successfully and all non-browser application checks passed. Real Chromium found five passing journeys and seven failures; fixture corrections and a native display-mode regression are being fixed before rerun. No full-browser pass is claimed yet.
 
 1. Local Chromium cannot create its required Unix socket; the separate supported cloud browser cannot reach this task's isolated localhost. No local screenshot or visual-browser pass is claimed.
 2. Live private Backblaze B2 bucket, credentials, scoped key permissions and immutable writes need operator verification. Local storage was tested.
 3. External email delivery and inbox arrival need provider configuration. Actual HTTP transport was tested against a local capture service only.
-4. No Docker daemon is available here. The independent Compose CI job must pass before claiming image build/runtime verification; configuration and native service execution alone do not establish it.
+4. Actual Docker Compose CI passed image build, database/Redis/migrations, non-root production web/worker, seed and deployed HTTP/assets checks in [run 39076875923](https://github.com/GitResetHard/Komfyflow/actions/runs/39076875923). This closes the basic Docker runtime gate, not B2/email/TLS production deployment.
 5. Public TLS, proxy trust, backups/restore, operational monitoring, load testing and moderation remain deployment requirements. No external service accounts or infrastructure have been provisioned.
 6. Unsupported extension widgets render as inert text placeholders. This viewer never executes workflows, imports extensions or promises pixel-identical custom extension UI.
 
