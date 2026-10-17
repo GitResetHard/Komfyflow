@@ -89,8 +89,12 @@ test('marquee geometry intersects edges and negative extents without false posit
 test('DPR viewport keeps logical pixels separate from both physical backing stores', () => {
   const viewport = m.measureViewport(501, 301, 2); assert.equal(viewport.physicalWidth, 1002)
   let measured
-  const host = { ds: { setViewportSize: (...size) => { measured = size } } }, canvas = { width: 0, height: 0, style: {} }, background = { width: 0, height: 0 }
+  const transforms = []
+  const host = { ds: { setViewportSize: (...size) => { measured = size } } }, canvas = { width: 0, height: 0, style: {}, getContext: () => ({setTransform: (...v) => transforms.push(v)}) }, background = { width: 0, height: 0, getContext: () => ({setTransform: (...v) => transforms.push(v)}) }
   m.applyViewport(viewport, canvas, background, host)
+  assert.deepEqual(transforms, [[2,0,0,2,0,0],[2,0,0,2,0,0]])
+  m.applyViewport(viewport, canvas, background, host)
+  assert.deepEqual(transforms.slice(2), [[2,0,0,2,0,0],[2,0,0,2,0,0]], 'repeat apply replaces transform rather than accumulating scale')
   assert.deepEqual(measured, [501, 301]); assert.equal(background.height, 602); assert.equal(host.dpr, 2)
   m.applyLogicalCanvasStyle(canvas, 501, 301); assert.equal(canvas.style.width, '501px')
   assert.equal(m.measureViewport(100, 100, Number.NaN).dpr, 1)
