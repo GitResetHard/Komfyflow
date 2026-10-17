@@ -60,6 +60,53 @@ export { expect };
 
 export async function expectRenderedGraph(canvas: Locator) {
   await expect(canvas).toBeVisible();
+  await expect
+    .poll(
+      () =>
+        canvas.evaluate((element) => {
+          const canvas = element as HTMLCanvasElement;
+          const bounds = canvas.getBoundingClientRect();
+          const dpr = window.devicePixelRatio;
+          return Math.max(
+            Math.abs(canvas.width - Math.round(bounds.width * dpr)),
+            Math.abs(canvas.height - Math.round(bounds.height * dpr)),
+          );
+        }),
+      {
+        message:
+          "Canvas backing dimensions must match displayed CSS dimensions × device pixel ratio, within one physical pixel of rounding",
+      },
+    )
+    .toBeLessThanOrEqual(1);
+  // At Fit the pinned native renderer paints an opaque #222 background over
+  // the complete viewport. Probe the physical backing store, not a screenshot
+  // composited over the iframe's CSS background. A missing DPR transform can
+  // paint colorful nodes only in the top-left portion and leave the rest clear.
+  await expect
+    .poll(
+      () =>
+        canvas.evaluate((element) => {
+          const canvas = element as HTMLCanvasElement;
+          const context = canvas.getContext("2d");
+          if (!context || canvas.width < 200 || canvas.height < 200) return [];
+          return [0.1, 0.5, 0.9].flatMap((y) =>
+            [0.1, 0.5, 0.9].map((x) => {
+              const { data } = context.getImageData(
+                Math.floor(canvas.width * x),
+                Math.floor(canvas.height * y),
+                1,
+                1,
+              );
+              return data[3] === 255 && data[0] + data[1] + data[2] > 0;
+            }),
+          );
+        }),
+      {
+        message:
+          "Native opaque background must cover the full physical canvas at all nine 10%/50%/90% viewport probes, including the right and bottom corners",
+      },
+    )
+    .toEqual(Array.from({ length: 9 }, () => true));
   // A canvas element alone is not evidence of native rendering. Sample actual
   // raster output and require more than the blank/grid background color palette.
   await expect

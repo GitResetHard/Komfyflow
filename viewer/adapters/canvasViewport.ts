@@ -18,6 +18,10 @@ export function applyViewport(viewport: CanvasViewport, canvas: HTMLCanvasElemen
     if (!target) continue
     if (target.width !== viewport.physicalWidth) target.width = viewport.physicalWidth
     if (target.height !== viewport.physicalHeight) target.height = viewport.physicalHeight
+    // Resizing clears Canvas2D state. Native front rendering uses logical pixels
+    // (including background drawImage), so re-establish an absolute DPR transform
+    // on both contexts. setTransform, not scale, also handles repeat/DPR-only calls.
+    target.getContext('2d')?.setTransform(viewport.dpr, 0, 0, viewport.dpr, 0, 0)
   }
   host.dpr = viewport.dpr
   host.ds?.setViewportSize(viewport.logicalWidth, viewport.logicalHeight)
