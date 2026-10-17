@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "mysql"
+}
+enum Visibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+}
+enum AnalysisStatus {
+  PENDING
+  READY
+  FAILED
+}
+model User {
+  id String @id @default(cuid())
+  username String @unique @db.VarChar(40)
+  email String @unique @db.VarChar(191)
+  passwordHash String @db.VarChar(255)
+  displayName String @db.VarChar(100)
+  avatarUrl String? @db.VarChar(1024)
+  bio String? @db.Text
+  verified Boolean @default(false)
+  adultOptIn Boolean @default(false)
+  createdAt DateTime @default(now())
+  sessions Session[]
+  tokens AuthToken[]
+  workflows Workflow[]
+  likes Like[]
+  bookmarks Bookmark[]
+  comments Comment[]
+  collections Collection[]
+  history ViewHistory[]
+}
+model Session {
+  id String @id @default(cuid())
+  tokenHash String @unique @db.Char(64)
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  @@index([expiresAt])
+}
+model AuthToken {
+  id String @id @default(cuid())
+  tokenHash String @unique @db.Char(64)
+  purpose String @db.VarChar(16)
+  userId String
+  user User @relation(fields:[userId], references:[id], onDelete:Cascade)
+  expiresAt DateTime
+  @@index([userId,purpose])
+}
+model Workflow {
+  id String @id @default(cuid())
+  title String @db.VarChar(180)
+  thumbnailUrl String? @db.VarChar(1024)
+  description String @db.Text
+  category String @db.VarChar(80)
+  visibility Visibility @default(PRIVATE)
+  adult Boolean @default(false)
+  authorId String
+  author User @relation(fields:[authorId],references:[id],onDelete:Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  versions WorkflowVersion[]
+  tags WorkflowTag[]
+  likes Like[]
+  bookmarks Bookmark[]
+  comments Comment[]
+  collectionItems CollectionItem[]
+  history ViewHistory[]
+  examples ExampleImage[]
+  @@index([visibility,adult,createdAt])
+  @@index([authorId])
+}
+model WorkflowVersion {
+  id String @id @default(cuid())
+  workflowId String
+  workflow Workflow @relation(fields:[workflowId],references:[id],onDelete:Cascade)
+  number Int
+  sourceKey String @unique @db.VarChar(255)
+  originalName String @db.VarChar(255)
+  sha256 String @db.Char(64)
+  bytes Int
+  analysis Json?
+  preview Json?
+  status AnalysisStatus @default(PENDING)
+  error String? @db.Text
+  nodes Int @default(0)
+  links Int @default(0)
+  createdAt DateTime @default(now())
+  examples ExampleImage[]
+  analysisRuns AnalysisRun[]
+  @@unique([workflowId,number])
+}
+model Tag {
+  id String @id @default(cuid())
+  name String @unique @db.VarChar(60)
+  workflows WorkflowTag[]
+}
+model WorkflowTag {
+  workflowId String
+  tagId String
+  workflow Workflow @relation(fields:[workflowId],references:[id],onDelete:Cascade)
+  tag Tag @relation(fields:[tagId],references:[id],onDelete:Cascade)
+  @@id([workflowId,tagId])
+}
+model Like {
+  userId String
+  workflowId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  workflow Workflow @relation(fields:[workflowId],references:[id],onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@id([userId,workflowId])
+}
+model Bookmark {
+  userId String
+  workflowId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  workflow Workflow @relation(fields:[workflowId],references:[id],onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@id([userId,workflowId])
+}
+model Comment {
+  id String @id @default(cuid())
+  userId String
+  workflowId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  workflow Workflow @relation(fields:[workflowId],references:[id],onDelete:Cascade)
+  body String @db.Text
+  createdAt DateTime @default(now())
+  @@index([workflowId,createdAt])
+}
+model Collection {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  name String @db.VarChar(100)
+  items CollectionItem[]
+  createdAt DateTime @default(now())
+}
+model CollectionItem {
+  collectionId String
+  workflowId String
+  collection Collection @relation(fields:[collectionId],references:[id],onDelete:Cascade)
+  workflow Workflow @relation(fields:[workflowId],references:[id],onDelete:Cascade)
+  @@id([collectionId,workflowId])
+}
+model ViewHistory {
+  userId String
+  workflowId String
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  workflow Workflow @relation(fields:[workflowId],references:[id],onDelete:Cascade)
+  viewedAt DateTime @default(now())
+  @@id([userId,workflowId])
+}
+
+model ExampleImage {
+  id String @id @default(cuid())
+  workflowId String
+  workflow Workflow @relation(fields:[workflowId],references:[id],onDelete:Cascade)
+  versionId String?
+  version WorkflowVersion? @relation(fields:[versionId],references:[id],onDelete:SetNull)
+  sourceKey String @unique @db.VarChar(255)
+  contentType String @db.VarChar(40)
+  caption String @db.VarChar(500)
+  createdAt DateTime @default(now())
+  @@index([workflowId])
+}
+model AnalysisRun {
+  id String @id @default(cuid())
+  versionId String
+  version WorkflowVersion @relation(fields:[versionId],references:[id],onDelete:Cascade)
+  status AnalysisStatus @default(PENDING)
+  analysis Json?
+  progress Int @default(0)
+  stage String @default("queued") @db.VarChar(40)
+  startedAt DateTime @default(now())
+  finishedAt DateTime?
+  error String? @db.Text
+  @@index([versionId,startedAt])
+}

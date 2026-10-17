@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.env
+.env.*.local
+storage/
+coverage/
+*.tsbuildinfo
+
+.data/
+*.log
+*.tar.gz
+*.zip
+
+playwright-report/
+test-results/

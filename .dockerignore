@@ -1,0 +1,14 @@
+node_modules
+.next
+.env
+.env.*.local
+storage
+.git
+coverage
+*.tsbuildinfo
+
+.data
+playwright-report
+test-results
+*.zip
+*.log

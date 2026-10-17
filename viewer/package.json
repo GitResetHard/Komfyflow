@@ -1,0 +1,17 @@
+{
+  "name": "komfyflow-native-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test *.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  },
+  "dependencies": {
+    "vue": "3.5.44",
+    "es-toolkit": "1.52.0",
+    "dompurify": "3.4.17"
+  }
+}
