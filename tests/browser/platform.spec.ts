@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { createServer } from "node:http";
 import { test, expect, expectRenderedGraph } from "./fixtures";
 
 const sampleTitle = "Cinematic landscapes with SDXL";
@@ -100,8 +101,11 @@ test("light theme and accent persist across a real reload", async ({
   if (isMobile)
     await page.getByRole("button", { name: "Toggle navigation" }).click();
   await page.getByRole("button", { name: "teal accent" }).click();
-  if (isMobile)
-    await page.getByRole("button", { name: "Close navigation" }).click();
+  if (isMobile) {
+    // The backdrop center is behind the drawer. Use the exposed header control.
+    await page.getByRole("button", { name: "Toggle navigation" }).click();
+    await expect(page.locator("aside.sidebar")).not.toHaveClass(/open/);
+  }
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.locator("html")).toHaveAttribute("data-accent", "teal");
@@ -168,7 +172,7 @@ test("registration, logout, rejected login, and successful login work end to end
     .locator("form")
     .getByRole("button", { name: "Sign in", exact: true })
     .click();
-  await expect(page.getByRole("alert")).toHaveText(
+  await expect(page.locator('form .error-message[role="alert"]')).toHaveText(
     "Email, username or password is incorrect.",
   );
   await page.getByLabel("Password", { exact: true }).fill(password);
@@ -228,7 +232,8 @@ test("workflow detail paints the native sandboxed canvas and exposes analysis", 
     body: await native.locator("#graph").screenshot(),
     contentType: "image/png",
   });
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  // Next.js has a separate accessibility route announcer with role="alert".
+  await expect(page.locator(".viewer-wrap").getByRole("alert")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Models & nodes", exact: true })
     .click();
@@ -245,35 +250,53 @@ test("public embed loads in a different-origin host with its real nested native 
   page,
   baseURL,
 }, testInfo) => {
-  // Only the embedding host is synthetic. Both iframe documents, source fetches,
-  // CSP headers, graph renderer, and graph data come from the production server.
-  const hostURL = new URL("/__acceptance_embed_host", baseURL);
-  hostURL.hostname =
-    hostURL.hostname === "localhost" ? "127.0.0.1" : "localhost";
-  await page.route(hostURL.href, (route) =>
-    route.fulfill({
-      contentType: "text/html",
-      body: `<!doctype html><html><head><title>Embedding consumer</title></head><body style="margin:0"><iframe title="Public workflow embed" src="${baseURL}/embed/sample-cinematic-landscape" style="width:100%;height:760px;border:0"></iframe></body></html>`,
-    }),
-  );
-  await page.goto(hostURL.href);
-  const embed = page.frameLocator('iframe[title="Public workflow embed"]');
-  await expect(
-    embed.getByText("komfyflow · Read-only workflow", { exact: true }),
-  ).toBeVisible();
-  await expect(
-    embed.getByRole("link", { name: "Open full workflow" }),
-  ).toHaveAttribute("href", samplePath);
-  const native = embed.frameLocator(
-    'iframe[title="Read-only native ComfyUI workflow graph"]',
-  );
-  await expect(native.locator("#status")).toHaveText(
-    "Native ComfyUI renderer · read only",
-  );
-  await expectRenderedGraph(native.locator("#graph"));
-  await expect(embed.getByRole("alert")).toHaveCount(0);
-  await testInfo.attach("cross-origin-embed", {
-    body: await page.screenshot({ fullPage: true }),
-    contentType: "image/png",
+  // Use a real loopback HTTP origin, not route.fulfill: an intercepted document
+  // has no genuine local address-space classification and Chromium correctly
+  // blocks its request into localhost. No browser security flags are disabled.
+  const host = createServer((_request, response) => {
+    response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    response.end(
+      `<!doctype html><html><head><title>Embedding consumer</title></head><body style="margin:0"><iframe title="Public workflow embed" src="${baseURL}/embed/sample-cinematic-landscape" style="width:100%;height:760px;border:0"></iframe></body></html>`,
+    );
   });
+  await new Promise<void>((resolve, reject) => {
+    host.once("error", reject);
+    host.listen(0, "127.0.0.1", resolve);
+  });
+  try {
+    const address = host.address();
+    if (!address || typeof address === "string")
+      throw new Error("Embedding host did not bind a TCP port");
+    const hostURL = `http://127.0.0.1:${address.port}/`;
+    expect(new URL(hostURL).origin).not.toBe(new URL(baseURL!).origin);
+    await page.goto(hostURL);
+    // Both iframe documents, source fetches, CSP headers, renderer, and graph
+    // data still come from the actual production application.
+    const embed = page.frameLocator('iframe[title="Public workflow embed"]');
+    await expect(
+      embed.getByText("komfyflow · Read-only workflow", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      embed.getByRole("link", { name: "Open full workflow" }),
+    ).toHaveAttribute("href", samplePath);
+    const native = embed.frameLocator(
+      'iframe[title="Read-only native ComfyUI workflow graph"]',
+    );
+    await expect(native.locator("#status")).toHaveText(
+      "Native ComfyUI renderer · read only",
+    );
+    await expectRenderedGraph(native.locator("#graph"));
+    await expect(embed.locator(".embed-page").getByRole("alert")).toHaveCount(
+      0,
+    );
+    await testInfo.attach("cross-origin-embed", {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: "image/png",
+    });
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      host.close((error) => (error ? reject(error) : resolve()));
+      host.closeAllConnections();
+    });
+  }
 });
