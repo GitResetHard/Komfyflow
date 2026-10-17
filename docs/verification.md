@@ -24,14 +24,23 @@ Native tests configure actual native graphs/subgraphs and draw the native canvas
 
 ## Browser CI and external gates
 
-GitHub Actions runs the full build/API/security suite and 12 Playwright desktop/mobile journeys, plus an independent actual Docker Compose build/start/seed/HTTP smoke job. Test discovery, configuration parsing and strict TypeScript checking pass locally. [Run 39077445066](https://github.com/GitResetHard/Komfyflow/actions/runs/39077445066) passed all 135 application tests, 54 viewer tests, 115 API checks, 14 Redis checks, 20 runtime checks, all 12 real Chromium desktop/mobile journeys and actual Docker Compose deployment. Manual screenshot review then identified high-DPI canvas underpainting despite the earlier raster test; the adapter is corrected with native DPR 2/2.625/3 regressions and stronger full-extent browser raster assertions. The final head rerun must confirm this last visual fix.
+[Successful complete run 39077826957](https://github.com/GitResetHard/Komfyflow/actions/runs/39077826957), source commit `c6752af596104c1857c3059200ec4b30c089f031`:
 
-1. Local Chromium cannot create its required Unix socket; the separate supported cloud browser cannot reach this task's isolated localhost. No local screenshot or visual-browser pass is claimed.
-2. Live private Backblaze B2 bucket, credentials, scoped key permissions and immutable writes need operator verification. Local storage was tested.
-3. External email delivery and inbox arrival need provider configuration. Actual HTTP transport was tested against a local capture service only.
-4. Actual Docker Compose CI passed image build, database/Redis/migrations, non-root production web/worker, seed and deployed HTTP/assets checks in [run 39076875923](https://github.com/GitResetHard/Komfyflow/actions/runs/39076875923). This closes the basic Docker runtime gate, not B2/email/TLS production deployment.
-5. Public TLS, proxy trust, backups/restore, operational monitoring, load testing and moderation remain deployment requirements. No external service accounts or infrastructure have been provisioned.
-6. Unsupported extension widgets render as inert text placeholders. This viewer never executes workflows, imports extensions or promises pixel-identical custom extension UI.
+- 135 application/security/UI tests and 54 actual native viewer/adapter tests.
+- Strict TypeScript, locked dependency installation and production build.
+- 115 live API, 14 cross-process Redis and 20 production HTTP/assets checks.
+- All 12 real Chromium desktop/mobile journeys passed, including authentication, search, persistent light/dark/accent state, actual native canvas painting and cross-origin embeds.
+- Actual Docker image build and Compose deployment passed, including database/Redis/migration, non-root web/worker, seed and deployed HTTP/native assets.
+- Downloaded real screenshots were visually inspected for desktop workflow nodes/text/connections, mobile high-DPI embedded canvas, and warm-light/teal discovery. Native viewport regressions explicitly cover DPR 1, 2, 2.625 and 3; browser raster probes cover the full physical canvas, not only its top-left corner.
+
+The GitHub run retains browser screenshots/reports and deployment evidence for 14 days. This is real remote Chromium verification, not a local mock browser. The restricted local environment could not launch Chromium; GitHub Actions supplied the supported browser and Docker runtime.
+
+### Remaining operator gates
+
+1. Live private Backblaze B2 bucket, credentials, scoped key permissions and immutable writes. Local storage was tested, not a real B2 account.
+2. External email delivery and inbox arrival. Actual transport was verified against a local capture service only.
+3. Public TLS, proxy trust, backups/restore, operational monitoring, load testing and moderation. No external infrastructure/accounts have been provisioned.
+4. Unsupported extension widgets remain inert text placeholders. The viewer never executes workflows or imports extension code and does not promise pixel-identical custom extension UI.
 
 ## Reproduction
 
@@ -39,7 +48,7 @@ See README.md and docs/API.md. Against a disposable configured instance run `npm
 
 `scripts/local-integration-harness.sh` is sandbox-specific, starts unpacked official service binaries under `/tmp`, and deliberately resets its disposable database. Never point it at real data. Normal deployment uses the documented service setup or Docker Compose.
 
-Production readiness is conditional on the explicit external and browser gates, not inferred from a successful build.
+Production readiness is conditional on the explicit external operator gates, not inferred from a successful build.
 
 ## Dependency selection
 
